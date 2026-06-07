@@ -1,0 +1,17 @@
+name: Redbag
+main: com.codex.minecraft.redbag.RedbagPlugin
+version: 1.0.0
+author: Codex
+softdepend: [AyCore, Vault, NyEconomy, Essentials]
+commands:
+  redbag:
+    description: Send and claim red packets.
+    usage: /redbag help
+    aliases: [hb, hongbao]
+permissions:
+  redbag.use:
+    description: Allows using redbag commands.
+    default: true
+  redbag.reload:
+    description: Allows reloading Redbag.
+    default: op

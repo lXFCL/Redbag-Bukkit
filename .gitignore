@@ -1,0 +1,13 @@
+target/
+test-server/
+test-server-*/
+test-server-redbag-run-*/
+.idea/
+.vscode/
+*.iml
+*.log
+*.tmp
+*.bak
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
