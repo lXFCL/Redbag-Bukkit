@@ -42,10 +42,11 @@ final class RedbagStorage {
                 double total = node.getDouble("total");
                 int count = node.getInt("count");
                 String message = node.getString("message", "恭喜发财");
+                String passphrase = node.getString("passphrase", "");
                 long createdAt = node.getLong("created-at");
                 double remaining = node.getDouble("remaining");
                 Map<UUID, Claim> claims = loadClaims(node.getConfigurationSection("claims"));
-                redbags.put(id, new Redbag(id, ownerId, ownerName, total, count, message, createdAt, remaining, claims));
+                redbags.put(id, new Redbag(id, ownerId, ownerName, total, count, message, passphrase, createdAt, remaining, claims));
             } catch (Exception ex) {
                 plugin.getLogger().warning("Failed to load redbag " + key + ": " + ex.getMessage());
             }
@@ -63,6 +64,7 @@ final class RedbagStorage {
             config.set(base + "total", redbag.getTotal());
             config.set(base + "count", redbag.getCount());
             config.set(base + "message", redbag.getMessage());
+            config.set(base + "passphrase", redbag.getPassphrase());
             config.set(base + "created-at", redbag.getCreatedAt());
             config.set(base + "remaining", redbag.getRemaining());
             for (Claim claim : redbag.getClaims().values()) {

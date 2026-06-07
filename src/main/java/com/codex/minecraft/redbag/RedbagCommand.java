@@ -36,6 +36,9 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
         if (args[0].equalsIgnoreCase("send")) {
             return send(sender, args);
         }
+        if (args[0].equalsIgnoreCase("code")) {
+            return code(sender, args);
+        }
         if (args[0].equalsIgnoreCase("grab") || args[0].equalsIgnoreCase("claim")) {
             return grab(sender, args);
         }
@@ -79,6 +82,38 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    private boolean code(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(plugin.msg("player-only"));
+            return true;
+        }
+        if (args.length < 4) {
+            sender.sendMessage(plugin.msg("invalid-code-usage"));
+            return true;
+        }
+        Double total = parseDouble(args[1]);
+        Integer count = parseInt(args[2]);
+        if (total == null || count == null) {
+            sender.sendMessage(plugin.msg("invalid-number"));
+            return true;
+        }
+        String passphrase = args[3];
+        String message = args.length > 4 ? join(args, 4) : "口令红包";
+        RedbagService.CreateResult result = service.create((Player) sender, total, count, message, passphrase);
+        if (!result.isSuccess()) {
+            sender.sendMessage(plugin.msg(result.getMessageKey()).replace("{total}", Money.format(total)));
+            return true;
+        }
+        Redbag redbag = result.getRedbag();
+        sender.sendMessage(plugin.msg("created-code")
+                .replace("{id}", String.valueOf(redbag.getId()))
+                .replace("{total}", Money.format(redbag.getTotal()))
+                .replace("{count}", String.valueOf(redbag.getCount()))
+                .replace("{passphrase}", redbag.getPassphrase()));
+        service.broadcastCreated(redbag);
+        return true;
+    }
+
     private boolean grab(CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(plugin.msg("player-only"));
@@ -93,7 +128,8 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(plugin.msg("invalid-number"));
             return true;
         }
-        RedbagService.ClaimResult result = service.claim((Player) sender, id);
+        String passphraseAnswer = args.length > 2 ? join(args, 2) : "";
+        RedbagService.ClaimResult result = service.claim((Player) sender, id, passphraseAnswer);
         if (!result.isSuccess()) {
             sender.sendMessage(plugin.msg(result.getMessageKey()));
             return true;
@@ -134,6 +170,9 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
         }
         sender.sendMessage(plugin.color("&c[红包]&r &e#" + redbag.getId() + " &f" + redbag.getOwnerName() + " &7" + redbag.getMessage()));
         sender.sendMessage(plugin.color("&7总额: &e" + Money.format(redbag.getTotal()) + " &7剩余: &e" + Money.format(redbag.getRemaining()) + " &7份数: &e" + redbag.getClaims().size() + "/" + redbag.getCount()));
+        if (redbag.hasPassphrase()) {
+            sender.sendMessage(plugin.color("&7类型: &d口令红包 &7领取时需要输入口令。"));
+        }
         for (Claim claim : redbag.getClaims().values()) {
             sender.sendMessage(plugin.color("&7- &f" + claim.getPlayerName() + " &e" + Money.format(claim.getAmount())));
         }
@@ -153,7 +192,8 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(plugin.color("&c[红包]&r &e/redbag send <总金额> <份数> [祝福语]"));
-        sender.sendMessage(plugin.color("&c[红包]&r &e/redbag grab <id>"));
+        sender.sendMessage(plugin.color("&c[红包]&r &e/redbag code <总金额> <份数> <口令> [祝福语]"));
+        sender.sendMessage(plugin.color("&c[红包]&r &e/redbag grab <id> [口令]"));
         sender.sendMessage(plugin.color("&c[红包]&r &e/redbag list"));
         sender.sendMessage(plugin.color("&c[红包]&r &e/redbag info <id>"));
     }
@@ -161,7 +201,7 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            List<String> options = new ArrayList<String>(Arrays.asList("send", "grab", "list", "info"));
+            List<String> options = new ArrayList<String>(Arrays.asList("send", "code", "grab", "list", "info"));
             if (sender.hasPermission("redbag.reload")) {
                 options.add("reload");
             }

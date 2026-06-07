@@ -31,6 +31,7 @@ public class RedbagPluginTest {
         assertNotNull(server);
         assertNotNull(plugin.getRedbagService());
         assertEquals(1D, plugin.getConfig().getDouble("settings.min-total"), 0.0001D);
+        assertEquals(16, plugin.getConfig().getInt("settings.max-passphrase-length"));
 
         PluginCommand command = plugin.getCommand("redbag");
         assertNotNull(command);

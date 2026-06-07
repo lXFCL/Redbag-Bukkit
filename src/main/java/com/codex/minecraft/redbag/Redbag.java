@@ -11,17 +11,19 @@ final class Redbag {
     private final double total;
     private final int count;
     private final String message;
+    private final String passphrase;
     private final long createdAt;
     private final Map<UUID, Claim> claims;
     private double remaining;
 
-    Redbag(int id, UUID ownerId, String ownerName, double total, int count, String message, long createdAt, double remaining, Map<UUID, Claim> claims) {
+    Redbag(int id, UUID ownerId, String ownerName, double total, int count, String message, String passphrase, long createdAt, double remaining, Map<UUID, Claim> claims) {
         this.id = id;
         this.ownerId = ownerId;
         this.ownerName = ownerName;
         this.total = total;
         this.count = count;
         this.message = message;
+        this.passphrase = cleanPassphrase(passphrase);
         this.createdAt = createdAt;
         this.remaining = remaining;
         this.claims = new LinkedHashMap<UUID, Claim>(claims);
@@ -49,6 +51,21 @@ final class Redbag {
 
     String getMessage() {
         return message;
+    }
+
+    String getPassphrase() {
+        return passphrase;
+    }
+
+    boolean hasPassphrase() {
+        return passphrase.length() > 0;
+    }
+
+    boolean matchesPassphrase(String answer) {
+        if (!hasPassphrase()) {
+            return true;
+        }
+        return passphrase.equals(cleanPassphrase(answer));
     }
 
     long getCreatedAt() {
@@ -82,7 +99,21 @@ final class Redbag {
         return claim;
     }
 
+    Claim getBestClaim() {
+        Claim best = null;
+        for (Claim claim : claims.values()) {
+            if (best == null || claim.getAmount() > best.getAmount()) {
+                best = claim;
+            }
+        }
+        return best;
+    }
+
     void refundRemaining() {
         remaining = 0D;
+    }
+
+    private String cleanPassphrase(String text) {
+        return text == null ? "" : text.trim();
     }
 }

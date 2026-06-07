@@ -35,6 +35,10 @@ final class RedbagService {
     }
 
     CreateResult create(Player player, double total, int count, String message) {
+        return create(player, total, count, message, "");
+    }
+
+    CreateResult create(Player player, double total, int count, String message, String passphrase) {
         if (!economy.isReady()) {
             return CreateResult.error("economy-missing");
         }
@@ -43,8 +47,12 @@ final class RedbagService {
         double maxTotal = plugin.getConfig().getDouble("settings.max-total", 1000000D);
         int minCount = plugin.getConfig().getInt("settings.min-count", 1);
         int maxCount = plugin.getConfig().getInt("settings.max-count", 100);
+        int maxPassphraseLength = plugin.getConfig().getInt("settings.max-passphrase-length", 16);
         if (total < minTotal || total > maxTotal || count < minCount || count > maxCount || total < count * 0.01D) {
             return CreateResult.error("invalid-usage");
+        }
+        if (passphrase != null && passphrase.trim().length() > maxPassphraseLength) {
+            return CreateResult.error("invalid-passphrase");
         }
         if (!economy.has(player, total)) {
             return CreateResult.error("insufficient-money");
@@ -53,13 +61,17 @@ final class RedbagService {
             return CreateResult.error("insufficient-money");
         }
 
-        Redbag redbag = new Redbag(nextId++, player.getUniqueId(), player.getName(), total, count, message, System.currentTimeMillis(), total, Collections.<java.util.UUID, Claim>emptyMap());
+        Redbag redbag = new Redbag(nextId++, player.getUniqueId(), player.getName(), total, count, message, passphrase, System.currentTimeMillis(), total, Collections.<java.util.UUID, Claim>emptyMap());
         redbags.put(redbag.getId(), redbag);
         save();
         return CreateResult.success(redbag);
     }
 
     ClaimResult claim(Player player, int id) {
+        return claim(player, id, "");
+    }
+
+    ClaimResult claim(Player player, int id, String passphraseAnswer) {
         Redbag redbag = redbags.get(id);
         if (redbag == null) {
             return ClaimResult.error("not-found");
@@ -75,6 +87,9 @@ final class RedbagService {
         if (redbag.hasClaimed(player.getUniqueId())) {
             return ClaimResult.error("already-grabbed");
         }
+        if (!redbag.matchesPassphrase(passphraseAnswer)) {
+            return ClaimResult.error("wrong-passphrase");
+        }
 
         double amount = Money.nextShare(redbag.getRemaining(), redbag.getRemainingCount(), plugin.getConfig().getBoolean("settings.random-amounts", true));
         if (!economy.deposit(player, amount)) {
@@ -82,6 +97,9 @@ final class RedbagService {
         }
         Claim claim = redbag.addClaim(player.getUniqueId(), player.getName(), amount, System.currentTimeMillis());
         save();
+        if (redbag.isFinished()) {
+            broadcastLuckyKing(redbag);
+        }
         return ClaimResult.success(redbag, claim);
     }
 
@@ -118,6 +136,21 @@ final class RedbagService {
                 .replace("{player}", redbag.getOwnerName())
                 .replace("{id}", String.valueOf(redbag.getId()))
                 .replace("{message}", redbag.getMessage());
+        Bukkit.broadcastMessage(text);
+    }
+
+    void broadcastLuckyKing(Redbag redbag) {
+        if (!plugin.getConfig().getBoolean("settings.broadcast-lucky-king", true)) {
+            return;
+        }
+        Claim best = redbag.getBestClaim();
+        if (best == null) {
+            return;
+        }
+        String text = plugin.msg("lucky-king-broadcast")
+                .replace("{id}", String.valueOf(redbag.getId()))
+                .replace("{player}", best.getPlayerName())
+                .replace("{amount}", Money.format(best.getAmount()));
         Bukkit.broadcastMessage(text);
     }
 

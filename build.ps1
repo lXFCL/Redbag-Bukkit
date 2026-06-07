@@ -4,7 +4,13 @@ $serverJar = 'D:\catserver\1.12.2\CatServer-5a600445-universal.jar'
 $sourceDir = Join-Path $PSScriptRoot 'src\main\java'
 $resourceDir = Join-Path $PSScriptRoot 'src\main\resources'
 $classesDir = Join-Path $PSScriptRoot 'target\classes'
-$jarPath = Join-Path $PSScriptRoot 'target\Redbag-1.0.0.jar'
+$pluginYml = Join-Path $resourceDir 'plugin.yml'
+$versionLine = Get-Content -Encoding UTF8 $pluginYml | Where-Object { $_ -match '^version:\s*(.+)$' } | Select-Object -First 1
+if ($versionLine -notmatch '^version:\s*(.+)$') {
+    throw "Plugin version not found in $pluginYml"
+}
+$version = $Matches[1].Trim()
+$jarPath = Join-Path $PSScriptRoot "target\Redbag-$version.jar"
 
 if (!(Test-Path $serverJar)) {
     throw "Server jar not found: $serverJar"

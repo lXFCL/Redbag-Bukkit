@@ -5,7 +5,9 @@ settings:
   max-count: 100
   expire-minutes: 60
   broadcast-created: true
+  broadcast-lucky-king: true
   random-amounts: true
+  max-passphrase-length: 16
 messages:
   prefix: '&c[红包]&r '
   no-permission: '&c你没有权限。'
@@ -13,12 +15,17 @@ messages:
   economy-missing: '&c未找到 Vault 经济服务，红包功能暂不可用。'
   invalid-number: '&c请输入有效数字。'
   invalid-usage: '&e用法: /redbag send <总金额> <份数> [祝福语]'
+  invalid-code-usage: '&e用法: /redbag code <总金额> <份数> <口令> [祝福语]'
+  invalid-passphrase: '&c口令太长，请缩短后再试。'
   created: '&a你发出了红包 &e#{id}&a，总金额 &e{total}&a，份数 &e{count}&a。'
+  created-code: '&a你发出了口令红包 &e#{id}&a，总金额 &e{total}&a，份数 &e{count}&a，口令 &d{passphrase}&a。'
   created-broadcast: '&e{player}&a 发出了红包 &e#{id}&a：&f{message} &7输入 &e/redbag grab {id}&7 领取。'
   grabbed: '&a你领取了红包 &e#{id}&a，获得 &e{amount}&a。'
+  wrong-passphrase: '&c口令错误，领取失败。'
   already-grabbed: '&c你已经领取过这个红包了。'
   not-found: '&c红包不存在。'
   closed: '&c这个红包已经领完或过期。'
   insufficient-money: '&c余额不足，需要 &e{total}&c。'
   list-empty: '&7当前没有可领取的红包。'
+  lucky-king-broadcast: '&6红包 &e#{id}&6 已抢完，手气王是 &e{player}&6，抢到 &e{amount}&6！'
   reloaded: '&aRedbag 已重载。'
