@@ -1,0 +1,184 @@
+package com.codex.minecraft.redbag;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
+final class RedbagDropGui implements Listener {
+    private final RedbagPlugin plugin;
+    private final Map<UUID, PendingRedbag> pending = new HashMap<UUID, PendingRedbag>();
+
+    RedbagDropGui(RedbagPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    void open(Player player, double total, int count, String message) {
+        pending.put(player.getUniqueId(), new PendingRedbag(total, count, message, System.currentTimeMillis()));
+        Inventory inventory = Bukkit.createInventory(null, getSize(), plugin.color(plugin.getConfig().getString("drop-gui.title", "&c选择领取物品")));
+        for (RedbagDropItem dropItem : getDropItems()) {
+            if (dropItem.getSlot() < 0 || dropItem.getSlot() >= inventory.getSize()) {
+                continue;
+            }
+            ItemStack stack = new ItemStack(dropItem.getMaterial(), 1);
+            ItemMeta meta = stack.getItemMeta();
+            if (meta != null) {
+                meta.setDisplayName(plugin.color(plugin.getConfig().getString("drop-gui.item-name", "&e{item}")
+                        .replace("{item}", dropItem.getDisplayName())));
+                List<String> lore = new ArrayList<String>();
+                for (String line : plugin.getConfig().getStringList("drop-gui.item-lore")) {
+                    lore.add(plugin.color(line
+                            .replace("{item}", dropItem.getDisplayName())
+                            .replace("{total}", Money.format(total))
+                            .replace("{count}", String.valueOf(count))));
+                }
+                meta.setLore(lore);
+                stack.setItemMeta(meta);
+            }
+            inventory.setItem(dropItem.getSlot(), stack);
+        }
+        player.openInventory(inventory);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) {
+            return;
+        }
+        Player player = (Player) event.getWhoClicked();
+        String title = plugin.color(plugin.getConfig().getString("drop-gui.title", "&c选择领取物品"));
+        if (!title.equals(getInventoryTitle(event))) {
+            return;
+        }
+        event.setCancelled(true);
+        RedbagDropItem selected = getDropItemBySlot(event.getRawSlot());
+        if (selected == null) {
+            return;
+        }
+        PendingRedbag request = pending.remove(player.getUniqueId());
+        if (request == null || request.isExpired(plugin.getConfig().getLong("settings.gui-pending-seconds", 60L) * 1000L)) {
+            player.closeInventory();
+            player.sendMessage(plugin.msg("gui-expired"));
+            return;
+        }
+        RedbagService.CreateResult result = plugin.getRedbagService().create(player, request.getTotal(), request.getCount(), request.getMessage(), "", selected.getMaterialName());
+        if (!result.isSuccess()) {
+            player.closeInventory();
+            player.sendMessage(plugin.msg(result.getMessageKey()).replace("{total}", Money.format(request.getTotal())));
+            return;
+        }
+        Redbag redbag = result.getRedbag();
+        player.closeInventory();
+        player.sendMessage(plugin.msg("created")
+                .replace("{id}", String.valueOf(redbag.getId()))
+                .replace("{total}", Money.format(redbag.getTotal()))
+                .replace("{count}", String.valueOf(redbag.getCount())));
+        player.sendMessage(plugin.msg("drop-created-tip")
+                .replace("{claim-item}", selected.getDisplayName())
+                .replace("{expire}", String.valueOf(plugin.getConfig().getLong("settings.expire-minutes", 10L))));
+        plugin.getRedbagService().broadcastCreated(redbag);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerDropItem(PlayerDropItemEvent event) {
+        ItemStack stack = event.getItemDrop().getItemStack();
+        if (stack == null || stack.getType() == Material.AIR) {
+            return;
+        }
+        Player player = event.getPlayer();
+        if (!plugin.getRedbagService().hasClaimableDropItem(player, stack.getType().name())) {
+            return;
+        }
+        RedbagService.ClaimResult result = plugin.getRedbagService().claimByDroppedItem(player, stack.getType().name());
+        if (result.isSuccess()) {
+            event.setCancelled(true);
+            player.sendMessage(plugin.msg("grabbed")
+                    .replace("{id}", String.valueOf(result.getRedbag().getId()))
+                    .replace("{amount}", Money.format(result.getClaim().getAmount())));
+        } else if (!"no-drop-redbag".equals(result.getMessageKey())) {
+            event.setCancelled(true);
+            player.sendMessage(plugin.msg(result.getMessageKey()));
+        }
+    }
+
+    private int getSize() {
+        int size = plugin.getConfig().getInt("drop-gui.size", 27);
+        if (size < 9) {
+            size = 9;
+        }
+        if (size > 54) {
+            size = 54;
+        }
+        return ((size + 8) / 9) * 9;
+    }
+
+    private String getInventoryTitle(InventoryClickEvent event) {
+        try {
+            Object view = event.getView();
+            Object title = view.getClass().getMethod("getTitle").invoke(view);
+            return String.valueOf(title);
+        } catch (Throwable ignored) {
+            try {
+                Object title = event.getInventory().getClass().getMethod("getTitle").invoke(event.getInventory());
+                return String.valueOf(title);
+            } catch (Throwable ignoredAgain) {
+                return "";
+            }
+        }
+    }
+
+    private RedbagDropItem getDropItemBySlot(int slot) {
+        for (RedbagDropItem dropItem : getDropItems()) {
+            if (dropItem.getSlot() == slot) {
+                return dropItem;
+            }
+        }
+        return null;
+    }
+
+    private List<RedbagDropItem> getDropItems() {
+        List<RedbagDropItem> result = new ArrayList<RedbagDropItem>();
+        ConfigurationSection section = plugin.getConfig().getConfigurationSection("drop-items");
+        if (section == null) {
+            return result;
+        }
+        int fallbackSlot = 0;
+        for (String key : section.getKeys(false)) {
+            ConfigurationSection itemSection = section.getConfigurationSection(key);
+            if (itemSection == null) {
+                itemSection = new org.bukkit.configuration.MemoryConfiguration();
+                itemSection.set("material", key);
+                itemSection.set("name", key);
+            }
+            RedbagDropItem item = RedbagDropItem.fromConfig(key, itemSection, fallbackSlot);
+            fallbackSlot++;
+            if (item != null) {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
+    Map<String, String> getDropItemNames() {
+        Map<String, String> names = new LinkedHashMap<String, String>();
+        for (RedbagDropItem item : getDropItems()) {
+            names.put(item.getMaterialName(), item.getDisplayName());
+        }
+        return names;
+    }
+}

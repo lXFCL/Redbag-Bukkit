@@ -39,10 +39,14 @@ public class RedbagPluginTest {
         assertNotNull(server);
         assertNotNull(plugin.getRedbagService());
         assertEquals(1D, plugin.getConfig().getDouble("settings.min-total"), 0.0001D);
-        assertEquals(5, plugin.getConfig().getInt("settings.expire-minutes"));
+        assertEquals(10, plugin.getConfig().getInt("settings.expire-minutes"));
         assertTrue(plugin.getConfig().getBoolean("settings.broadcast-claimed"));
+        assertEquals(1.5D, plugin.getConfig().getDouble("settings.drop-speed-bonus-multiplier"), 0.0001D);
         assertEquals(16, plugin.getConfig().getInt("settings.max-passphrase-length"));
         assertEquals("&c&l红包来了！", plugin.getConfig().getString("messages.title-main"));
+        assertEquals(10, plugin.getConfig().getConfigurationSection("drop-items").getKeys(false).size());
+        assertEquals("泥土", plugin.getConfig().getString("drop-items.DIRT.name"));
+        assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("{claim-item}"));
         assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("祝福语: "));
         assertTrue(plugin.getConfig().getString("messages.created-code-broadcast").contains("祝福语: "));
         assertTrue(plugin.getConfig().getString("messages.claimed-broadcast").contains("{remaining-count}"));

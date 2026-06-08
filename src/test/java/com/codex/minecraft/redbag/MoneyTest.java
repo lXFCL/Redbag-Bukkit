@@ -25,4 +25,13 @@ public class MoneyTest {
             assertTrue(share <= 0.91D);
         }
     }
+
+    @Test
+    public void speedBonusCanIncreaseRandomShareCeiling() {
+        for (int i = 0; i < 100; i++) {
+            double share = Money.nextShare(10D, 5, true, 1D, 1.5D);
+            assertTrue(share >= 0.01D);
+            assertTrue(share <= 9.96D);
+        }
+    }
 }

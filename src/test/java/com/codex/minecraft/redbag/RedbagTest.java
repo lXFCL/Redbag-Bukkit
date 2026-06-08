@@ -31,6 +31,17 @@ public class RedbagTest {
     }
 
     @Test
+    public void dropItemRedbagMatchesConfiguredMaterial() {
+        Redbag redbag = new Redbag(1, UUID.randomUUID(), "Alice", 10D, 2, "hello", "", "dirt", System.currentTimeMillis(), 10D, Collections.<UUID, Claim>emptyMap());
+
+        assertTrue(redbag.requiresDropItem());
+        assertEquals("DIRT", redbag.getClaimItemMaterial());
+        assertTrue(redbag.matchesClaimItem("DIRT"));
+        assertTrue(redbag.matchesClaimItem("dirt"));
+        assertFalse(redbag.matchesClaimItem("STONE"));
+    }
+
+    @Test
     public void cleanPassphraseTrimsChatInput() {
         assertEquals("lucky", Redbag.cleanPassphrase(" lucky "));
         assertEquals("", Redbag.cleanPassphrase(null));

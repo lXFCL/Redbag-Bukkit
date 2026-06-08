@@ -13,11 +13,13 @@ import org.bukkit.entity.Player;
 
 final class RedbagCommand implements CommandExecutor, TabCompleter {
     private final RedbagPlugin plugin;
+    private final RedbagDropGui dropGui;
     private RedbagService service;
 
-    RedbagCommand(RedbagPlugin plugin, RedbagService service) {
+    RedbagCommand(RedbagPlugin plugin, RedbagService service, RedbagDropGui dropGui) {
         this.plugin = plugin;
         this.service = service;
+        this.dropGui = dropGui;
     }
 
     @Override
@@ -68,17 +70,8 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         String message = args.length > 3 ? join(args, 3) : "恭喜发财";
-        RedbagService.CreateResult result = service.create((Player) sender, total, count, message);
-        if (!result.isSuccess()) {
-            sender.sendMessage(plugin.msg(result.getMessageKey()).replace("{total}", Money.format(total)));
-            return true;
-        }
-        Redbag redbag = result.getRedbag();
-        sender.sendMessage(plugin.msg("created")
-                .replace("{id}", String.valueOf(redbag.getId()))
-                .replace("{total}", Money.format(redbag.getTotal()))
-                .replace("{count}", String.valueOf(redbag.getCount())));
-        service.broadcastCreated(redbag);
+        dropGui.open((Player) sender, total, count, message);
+        sender.sendMessage(plugin.msg("choose-drop-item"));
         return true;
     }
 
@@ -172,6 +165,8 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.color("&7总额: &e" + Money.format(redbag.getTotal()) + " &7剩余: &e" + Money.format(redbag.getRemaining()) + " &7份数: &e" + redbag.getClaims().size() + "/" + redbag.getCount()));
         if (redbag.hasPassphrase()) {
             sender.sendMessage(plugin.color("&7类型: &d口令红包 &7领取时需要输入口令。"));
+        } else if (redbag.requiresDropItem()) {
+            sender.sendMessage(plugin.color("&7类型: &a物品红包 &7丢出: &e" + redbag.getClaimItemMaterial()));
         }
         for (Claim claim : redbag.getClaims().values()) {
             sender.sendMessage(plugin.color("&7- &f" + claim.getPlayerName() + " &e" + Money.format(claim.getAmount())));
@@ -191,7 +186,7 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(plugin.color("&c[红包]&r &e/redbag send <总金额> <份数> [祝福语]"));
+        sender.sendMessage(plugin.color("&c[红包]&r &e/redbag send <总金额> <份数> [祝福语] &7打开物品选择界面"));
         sender.sendMessage(plugin.color("&c[红包]&r &e/redbag code <总金额> <份数> <口令> [祝福语]"));
         sender.sendMessage(plugin.color("&c[红包]&r &e/redbag grab <id> [口令]"));
         sender.sendMessage(plugin.color("&c[红包]&r &e/redbag list"));

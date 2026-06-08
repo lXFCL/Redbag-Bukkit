@@ -12,6 +12,7 @@ public final class RedbagPlugin extends JavaPlugin {
     private RedbagService redbagService;
     private RedbagStorage storage;
     private EconomyBridge economy;
+    private RedbagDropGui dropGui;
 
     public RedbagPlugin() {
         super();
@@ -26,14 +27,16 @@ public final class RedbagPlugin extends JavaPlugin {
         saveDefaultConfig();
         this.storage = new RedbagStorage(this);
         reloadRuntime();
+        this.dropGui = new RedbagDropGui(this);
 
-        RedbagCommand command = new RedbagCommand(this, redbagService);
+        RedbagCommand command = new RedbagCommand(this, redbagService, dropGui);
         PluginCommand pluginCommand = getCommand("redbag");
         if (pluginCommand != null) {
             pluginCommand.setExecutor(command);
             pluginCommand.setTabCompleter(command);
         }
         getServer().getPluginManager().registerEvents(new RedbagChatListener(this), this);
+        getServer().getPluginManager().registerEvents(dropGui, this);
 
         getLogger().info("Redbag enabled. Economy ready: " + economy.isReady());
     }
@@ -52,6 +55,10 @@ public final class RedbagPlugin extends JavaPlugin {
 
     public RedbagService getRedbagService() {
         return redbagService;
+    }
+
+    RedbagDropGui getDropGui() {
+        return dropGui;
     }
 
     private void reloadRuntime() {

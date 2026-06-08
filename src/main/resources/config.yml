@@ -3,12 +3,63 @@ settings:
   max-total: 1000000.0
   min-count: 1
   max-count: 100
-  expire-minutes: 5
+  expire-minutes: 10
   broadcast-created: true
   broadcast-claimed: true
   broadcast-lucky-king: true
   random-amounts: true
+  drop-speed-bonus-multiplier: 1.5
+  gui-pending-seconds: 60
   max-passphrase-length: 16
+drop-gui:
+  title: '&c选择红包领取物品'
+  size: 27
+  item-name: '&e{item}'
+  item-lore:
+    - '&7点击选择这个物品作为领取方式'
+    - '&7总金额: &e{total}'
+    - '&7份数: &e{count}'
+drop-items:
+  DIRT:
+    material: DIRT
+    name: '泥土'
+    slot: 1
+  DIAMOND_BLOCK:
+    material: DIAMOND_BLOCK
+    name: '钻石块'
+    slot: 3
+  WATER_BUCKET:
+    material: WATER_BUCKET
+    name: '水桶'
+    slot: 5
+  RED_MUSHROOM:
+    material: RED_MUSHROOM
+    name: '红蘑菇'
+    slot: 7
+  APPLE:
+    material: APPLE
+    name: '苹果'
+    slot: 10
+  GOLD_INGOT:
+    material: GOLD_INGOT
+    name: '金锭'
+    slot: 12
+  EMERALD:
+    material: EMERALD
+    name: '绿宝石'
+    slot: 14
+  TORCH:
+    material: TORCH
+    name: '火把'
+    slot: 16
+  BREAD:
+    material: BREAD
+    name: '面包'
+    slot: 21
+  PAPER:
+    material: PAPER
+    name: '纸'
+    slot: 23
 messages:
   prefix: '&c[红包]&r '
   no-permission: '&c你没有权限。'
@@ -19,19 +70,21 @@ messages:
   invalid-code-usage: '&e用法: /redbag code <总金额> <份数> <口令> [祝福语]'
   invalid-passphrase: '&c口令太长，请缩短后再试。'
   duplicate-passphrase: '&c已经有一个相同口令的红包可以领取，请换一个口令。'
+  choose-drop-item: '&a请选择一种领取物品，选定后红包才会发出。'
+  gui-expired: '&c选择超时，请重新发送红包。'
   created: '&a你发出了红包 &e#{id}&a，总金额 &e{total}&a，份数 &e{count}&a。'
   created-code: '&a你发出了口令红包 &e#{id}&a，总金额 &e{total}&a，份数 &e{count}&a，口令 &d{passphrase}&a。'
-  created-broadcast: '&e{player}&a 发出了红包 &e#{id}&a，祝福语: &f{message} '
-  created-click-text: '&c&l[点我领取红包]'
-  created-click-hover: '&e点击领取红包 #{id}'
-  created-broadcast-suffix: ' &7有效期 {expire} 分钟。'
+  created-broadcast: '&e{player}&a 发出了红包 &e#{id}&a，祝福语: &f{message} &7丢出 &e{claim-item}&7 即可领取，越快金额越容易更高。&8（有效期 {expire} 分钟）'
   created-code-broadcast: '&e{player}&a 发出了口令红包 &e#{id}&a，祝福语: &f{message} &7输入口令 &d{passphrase}&7 来领取红包。&8（有效期 {expire} 分钟）'
   title-main: '&c&l红包来了！'
   title-subtitle: '&f祝福语：{message}'
   title-code-main: '&d&l口令红包来了！'
   title-code-subtitle: '&f输入口令 {passphrase} 领取｜祝福语：{message}'
   grabbed: '&a你领取了红包 &e#{id}&a，获得 &e{amount}&a。'
+  drop-created-tip: '&a红包已发出，其他玩家丢出 &e{claim-item}&a 即可领取。有效期 &e{expire}&a 分钟。'
   claimed-broadcast: '&e{claimer}&a 领取了 &e{player}&a 的红包 &e#{id}&a，还剩 &e{remaining-count}&a 个红包。'
+  drop-required: '&c这个红包需要丢出指定物品领取。'
+  no-drop-redbag: '&c当前没有可用这个物品领取的红包。'
   wrong-passphrase: '&c口令错误，领取失败。'
   ambiguous-passphrase: '&c有多个红包使用了这个口令，请点击对应红包消息领取。'
   already-grabbed: '&c你已经领取过这个红包了。'

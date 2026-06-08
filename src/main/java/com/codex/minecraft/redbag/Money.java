@@ -20,6 +20,10 @@ final class Money {
     }
 
     static double nextShare(double remaining, int remainingCount, boolean randomAmounts) {
+        return nextShare(remaining, remainingCount, randomAmounts, 0D, 0D);
+    }
+
+    static double nextShare(double remaining, int remainingCount, boolean randomAmounts, double speedWeight, double speedBonusMultiplier) {
         if (remainingCount <= 1) {
             return round(remaining);
         }
@@ -28,7 +32,9 @@ final class Money {
         }
 
         double min = 0.01D;
-        double max = Math.max(min, remaining / remainingCount * 2D);
+        speedWeight = Math.max(0D, Math.min(1D, speedWeight));
+        speedBonusMultiplier = Math.max(0D, speedBonusMultiplier);
+        double max = Math.max(min, remaining / remainingCount * 2D * (1D + speedWeight * speedBonusMultiplier));
         double amount = ThreadLocalRandom.current().nextDouble(min, max);
         double rounded = round(amount);
         double reserve = (remainingCount - 1) * min;

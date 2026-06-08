@@ -40,10 +40,14 @@ final class RedbagService {
     }
 
     CreateResult create(Player player, double total, int count, String message) {
-        return create(player, total, count, message, "");
+        return create(player, total, count, message, "", "");
     }
 
     CreateResult create(Player player, double total, int count, String message, String passphrase) {
+        return create(player, total, count, message, passphrase, "");
+    }
+
+    CreateResult create(Player player, double total, int count, String message, String passphrase, String claimItemMaterial) {
         if (!economy.isReady()) {
             return CreateResult.error("economy-missing");
         }
@@ -70,7 +74,7 @@ final class RedbagService {
             return CreateResult.error("insufficient-money");
         }
 
-        Redbag redbag = new Redbag(nextId++, player.getUniqueId(), player.getName(), total, count, message, passphrase, System.currentTimeMillis(), total, Collections.<java.util.UUID, Claim>emptyMap());
+        Redbag redbag = new Redbag(nextId++, player.getUniqueId(), player.getName(), total, count, message, passphrase, claimItemMaterial, System.currentTimeMillis(), total, Collections.<java.util.UUID, Claim>emptyMap());
         redbags.put(redbag.getId(), redbag);
         save();
         return CreateResult.success(redbag);
@@ -99,18 +103,24 @@ final class RedbagService {
         if (!redbag.matchesPassphrase(passphraseAnswer)) {
             return ClaimResult.error("wrong-passphrase");
         }
+        if (redbag.requiresDropItem()) {
+            return ClaimResult.error("drop-required");
+        }
 
         double amount = Money.nextShare(redbag.getRemaining(), redbag.getRemainingCount(), plugin.getConfig().getBoolean("settings.random-amounts", true));
-        if (!economy.deposit(player, amount)) {
-            return ClaimResult.error("economy-missing");
+        return finishClaim(player, redbag, amount);
+    }
+
+    ClaimResult claimByDroppedItem(Player player, String materialName) {
+        for (Redbag redbag : getOpenRedbags()) {
+            if (redbag.matchesClaimItem(materialName) && !redbag.hasClaimed(player.getUniqueId())) {
+                double speedWeight = getSpeedWeight(redbag);
+                double bonusMultiplier = plugin.getConfig().getDouble("settings.drop-speed-bonus-multiplier", 1.5D);
+                double amount = Money.nextShare(redbag.getRemaining(), redbag.getRemainingCount(), plugin.getConfig().getBoolean("settings.random-amounts", true), speedWeight, bonusMultiplier);
+                return finishClaim(player, redbag, amount);
+            }
         }
-        Claim claim = redbag.addClaim(player.getUniqueId(), player.getName(), amount, System.currentTimeMillis());
-        save();
-        broadcastClaimed(redbag, claim);
-        if (redbag.isFinished()) {
-            broadcastLuckyKing(redbag);
-        }
-        return ClaimResult.success(redbag, claim);
+        return ClaimResult.error("no-drop-redbag");
     }
 
     ClaimResult claimByPassphrase(Player player, String passphraseAnswer) {
@@ -159,6 +169,15 @@ final class RedbagService {
         return false;
     }
 
+    boolean hasClaimableDropItem(Player player, String materialName) {
+        for (Redbag redbag : getOpenRedbags()) {
+            if (redbag.matchesClaimItem(materialName) && !redbag.hasClaimed(player.getUniqueId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     Redbag get(int id) {
         Redbag redbag = redbags.get(id);
         if (redbag != null && isExpired(redbag)) {
@@ -191,14 +210,7 @@ final class RedbagService {
         if (redbag.hasPassphrase()) {
             Bukkit.broadcastMessage(format(plugin.msg("created-code-broadcast"), redbag));
         } else {
-            String text = format(plugin.msg("created-broadcast"), redbag);
-            String clickText = format(rawMessage("created-click-text", "&c&l[点我领取红包]"), redbag);
-            String hover = format(rawMessage("created-click-hover", "&e点击领取红包 #{id}"), redbag);
-            String suffix = format(rawMessage("created-broadcast-suffix", ""), redbag);
-            String command = "/redbag grab " + redbag.getId();
-            if (!sendClickableBroadcast(text, clickText, command, hover, suffix)) {
-                Bukkit.broadcastMessage(text + clickText + suffix);
-            }
+            Bukkit.broadcastMessage(format(plugin.msg("created-broadcast"), redbag));
         }
         sendTitle(redbag);
     }
@@ -254,6 +266,28 @@ final class RedbagService {
         return false;
     }
 
+    private ClaimResult finishClaim(Player player, Redbag redbag, double amount) {
+        if (!economy.deposit(player, amount)) {
+            return ClaimResult.error("economy-missing");
+        }
+        Claim claim = redbag.addClaim(player.getUniqueId(), player.getName(), amount, System.currentTimeMillis());
+        save();
+        broadcastClaimed(redbag, claim);
+        if (redbag.isFinished()) {
+            broadcastLuckyKing(redbag);
+        }
+        return ClaimResult.success(redbag, claim);
+    }
+
+    private double getSpeedWeight(Redbag redbag) {
+        long expireMillis = plugin.getConfig().getLong("settings.expire-minutes", 10L) * 60L * 1000L;
+        if (expireMillis <= 0L) {
+            return 0D;
+        }
+        long elapsed = Math.max(0L, System.currentTimeMillis() - redbag.getCreatedAt());
+        return Math.max(0D, Math.min(1D, 1D - (double) elapsed / (double) expireMillis));
+    }
+
     private String rawMessage(String path, String fallback) {
         return plugin.color(plugin.getConfig().getString("messages." + path, fallback));
     }
@@ -262,64 +296,16 @@ final class RedbagService {
         return text.replace("{player}", redbag.getOwnerName())
                 .replace("{id}", String.valueOf(redbag.getId()))
                 .replace("{passphrase}", redbag.getPassphrase())
+                .replace("{claim-item}", getClaimItemDisplayName(redbag.getClaimItemMaterial()))
+                .replace("{claim-item-material}", redbag.getClaimItemMaterial())
                 .replace("{message}", redbag.getMessage())
-                .replace("{expire}", String.valueOf(plugin.getConfig().getLong("settings.expire-minutes", 5L)));
+                .replace("{expire}", String.valueOf(plugin.getConfig().getLong("settings.expire-minutes", 10L)));
     }
 
-    private boolean sendClickableBroadcast(String text, String clickText, String command, String hover, String suffix) {
-        try {
-            Class<?> componentClass = Class.forName("net.md_5.bungee.api.chat.TextComponent");
-            Class<?> baseComponentClass = Class.forName("net.md_5.bungee.api.chat.BaseComponent");
-            Class<?> clickEventClass = Class.forName("net.md_5.bungee.api.chat.ClickEvent");
-            Class<?> clickActionClass = Class.forName("net.md_5.bungee.api.chat.ClickEvent$Action");
-            Class<?> hoverEventClass = Class.forName("net.md_5.bungee.api.chat.HoverEvent");
-            Class<?> hoverActionClass = Class.forName("net.md_5.bungee.api.chat.HoverEvent$Action");
-            java.lang.reflect.Method fromLegacyText = componentClass.getMethod("fromLegacyText", String.class);
-            Object textComponents = fromLegacyText.invoke(null, text);
-            Object clickComponents = fromLegacyText.invoke(null, clickText);
-            Object suffixComponents = fromLegacyText.invoke(null, suffix);
-            int textLength = java.lang.reflect.Array.getLength(textComponents);
-            int clickLength = java.lang.reflect.Array.getLength(clickComponents);
-            int suffixLength = java.lang.reflect.Array.getLength(suffixComponents);
-            Object messageArray = java.lang.reflect.Array.newInstance(baseComponentClass, textLength + clickLength + suffixLength);
-            copyComponents(textComponents, messageArray, 0);
-            copyComponents(clickComponents, messageArray, textLength);
-            copyComponents(suffixComponents, messageArray, textLength + clickLength);
-            Object clickAction = enumValue(clickActionClass, "RUN_COMMAND");
-            Object clickEvent = clickEventClass.getConstructor(clickActionClass, String.class).newInstance(clickAction, command);
-            Object hoverAction = enumValue(hoverActionClass, "SHOW_TEXT");
-            Object hoverComponents = fromLegacyText.invoke(null, hover);
-            Object hoverEvent = hoverEventClass.getConstructor(hoverActionClass, hoverComponents.getClass()).newInstance(hoverAction, hoverComponents);
-            for (int i = textLength; i < textLength + clickLength; i++) {
-                Object component = java.lang.reflect.Array.get(messageArray, i);
-                component.getClass().getMethod("setClickEvent", clickEventClass).invoke(component, clickEvent);
-                component.getClass().getMethod("setHoverEvent", hoverEventClass).invoke(component, hoverEvent);
-            }
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                Object spigot = player.getClass().getMethod("spigot").invoke(player);
-                spigot.getClass().getMethod("sendMessage", messageArray.getClass()).invoke(spigot, messageArray);
-            }
-            return true;
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    private void copyComponents(Object sourceArray, Object targetArray, int targetOffset) {
-        int length = java.lang.reflect.Array.getLength(sourceArray);
-        for (int i = 0; i < length; i++) {
-            java.lang.reflect.Array.set(targetArray, targetOffset + i, java.lang.reflect.Array.get(sourceArray, i));
-        }
-    }
-
-    private Object enumValue(Class<?> enumClass, String name) {
-        Object[] constants = enumClass.getEnumConstants();
-        for (Object constant : constants) {
-            if (((Enum<?>) constant).name().equals(name)) {
-                return constant;
-            }
-        }
-        throw new IllegalArgumentException(name);
+    private String getClaimItemDisplayName(String materialName) {
+        String path = "drop-items." + materialName + ".name";
+        String configured = plugin.getConfig().getString(path, "");
+        return configured == null || configured.trim().length() == 0 ? materialName : configured;
     }
 
     private void sendTitle(Redbag redbag) {

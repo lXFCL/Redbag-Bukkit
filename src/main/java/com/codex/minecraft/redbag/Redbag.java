@@ -12,11 +12,16 @@ final class Redbag {
     private final int count;
     private final String message;
     private final String passphrase;
+    private final String claimItemMaterial;
     private final long createdAt;
     private final Map<UUID, Claim> claims;
     private double remaining;
 
     Redbag(int id, UUID ownerId, String ownerName, double total, int count, String message, String passphrase, long createdAt, double remaining, Map<UUID, Claim> claims) {
+        this(id, ownerId, ownerName, total, count, message, passphrase, "", createdAt, remaining, claims);
+    }
+
+    Redbag(int id, UUID ownerId, String ownerName, double total, int count, String message, String passphrase, String claimItemMaterial, long createdAt, double remaining, Map<UUID, Claim> claims) {
         this.id = id;
         this.ownerId = ownerId;
         this.ownerName = ownerName;
@@ -24,6 +29,7 @@ final class Redbag {
         this.count = count;
         this.message = message;
         this.passphrase = cleanPassphrase(passphrase);
+        this.claimItemMaterial = claimItemMaterial == null ? "" : claimItemMaterial.trim().toUpperCase();
         this.createdAt = createdAt;
         this.remaining = remaining;
         this.claims = new LinkedHashMap<UUID, Claim>(claims);
@@ -59,6 +65,18 @@ final class Redbag {
 
     boolean hasPassphrase() {
         return passphrase.length() > 0;
+    }
+
+    String getClaimItemMaterial() {
+        return claimItemMaterial;
+    }
+
+    boolean requiresDropItem() {
+        return !hasPassphrase() && claimItemMaterial.length() > 0;
+    }
+
+    boolean matchesClaimItem(String materialName) {
+        return requiresDropItem() && claimItemMaterial.equalsIgnoreCase(materialName == null ? "" : materialName.trim());
     }
 
     boolean matchesPassphrase(String answer) {
