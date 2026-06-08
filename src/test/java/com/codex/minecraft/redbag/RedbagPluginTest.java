@@ -47,8 +47,8 @@ public class RedbagPluginTest {
         assertEquals(10, plugin.getConfig().getConfigurationSection("drop-items").getKeys(false).size());
         assertEquals("泥土", plugin.getConfig().getString("drop-items.DIRT.name"));
         assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("{claim-item}"));
-        assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("右键"));
-        assertTrue(plugin.getConfig().getString("messages.drop-created-tip").contains("右键"));
+        assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("左键空气"));
+        assertTrue(plugin.getConfig().getString("messages.drop-created-tip").contains("左键"));
         assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("祝福语: "));
         assertTrue(plugin.getConfig().getString("messages.created-code-broadcast").contains("祝福语: "));
         assertTrue(plugin.getConfig().getString("messages.claimed-broadcast").contains("{remaining-count}"));
