@@ -31,6 +31,12 @@ public class RedbagTest {
     }
 
     @Test
+    public void cleanPassphraseTrimsChatInput() {
+        assertEquals("lucky", Redbag.cleanPassphrase(" lucky "));
+        assertEquals("", Redbag.cleanPassphrase(null));
+    }
+
+    @Test
     public void bestClaimReturnsHighestAmount() {
         Redbag redbag = new Redbag(1, UUID.randomUUID(), "Alice", 10D, 3, "hello", "", System.currentTimeMillis(), 10D, Collections.<UUID, Claim>emptyMap());
 

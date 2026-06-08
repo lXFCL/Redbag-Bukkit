@@ -113,7 +113,7 @@ final class Redbag {
         remaining = 0D;
     }
 
-    private String cleanPassphrase(String text) {
+    static String cleanPassphrase(String text) {
         return text == null ? "" : text.trim();
     }
 }

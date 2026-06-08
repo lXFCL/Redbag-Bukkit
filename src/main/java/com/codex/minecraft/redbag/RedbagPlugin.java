@@ -33,6 +33,7 @@ public final class RedbagPlugin extends JavaPlugin {
             pluginCommand.setExecutor(command);
             pluginCommand.setTabCompleter(command);
         }
+        getServer().getPluginManager().registerEvents(new RedbagChatListener(this), this);
 
         getLogger().info("Redbag enabled. Economy ready: " + economy.isReady());
     }

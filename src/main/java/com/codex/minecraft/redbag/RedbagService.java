@@ -23,6 +23,11 @@ final class RedbagService {
         this.economy = economy;
     }
 
+    void replaceRedbagsForTest(int nextId, Map<Integer, Redbag> redbags) {
+        this.nextId = nextId;
+        this.redbags = new LinkedHashMap<Integer, Redbag>(redbags);
+    }
+
     void load() {
         RedbagStorage.LoadedRedbags loaded = storage.load();
         this.nextId = loaded.getNextId();
@@ -103,6 +108,39 @@ final class RedbagService {
         return ClaimResult.success(redbag, claim);
     }
 
+    ClaimResult claimByPassphrase(Player player, String passphraseAnswer) {
+        String answer = Redbag.cleanPassphrase(passphraseAnswer);
+        if (answer.length() == 0) {
+            return ClaimResult.error("wrong-passphrase");
+        }
+        Redbag found = null;
+        for (Redbag redbag : getOpenRedbags()) {
+            if (redbag.hasPassphrase() && redbag.matchesPassphrase(answer) && !redbag.hasClaimed(player.getUniqueId())) {
+                if (found != null) {
+                    return ClaimResult.error("ambiguous-passphrase");
+                }
+                found = redbag;
+            }
+        }
+        if (found == null) {
+            return ClaimResult.error("wrong-passphrase");
+        }
+        return claim(player, found.getId(), answer);
+    }
+
+    boolean hasClaimablePassphrase(Player player, String passphraseAnswer) {
+        String answer = Redbag.cleanPassphrase(passphraseAnswer);
+        if (answer.length() == 0) {
+            return false;
+        }
+        for (Redbag redbag : getOpenRedbags()) {
+            if (redbag.hasPassphrase() && redbag.matchesPassphrase(answer) && !redbag.hasClaimed(player.getUniqueId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     Redbag get(int id) {
         Redbag redbag = redbags.get(id);
         if (redbag != null && isExpired(redbag)) {
@@ -132,11 +170,21 @@ final class RedbagService {
         if (!plugin.getConfig().getBoolean("settings.broadcast-created", true)) {
             return;
         }
-        String text = plugin.msg("created-broadcast")
+        String messageKey = redbag.hasPassphrase() ? "created-code-broadcast" : "created-broadcast";
+        String text = plugin.msg(messageKey)
                 .replace("{player}", redbag.getOwnerName())
                 .replace("{id}", String.valueOf(redbag.getId()))
+                .replace("{passphrase}", redbag.getPassphrase())
                 .replace("{message}", redbag.getMessage());
-        Bukkit.broadcastMessage(text);
+        String hover = plugin.msg("click-hover").replace("{id}", String.valueOf(redbag.getId()));
+        String command = "/redbag grab " + redbag.getId();
+        if (redbag.hasPassphrase()) {
+            command = command + " " + redbag.getPassphrase();
+        }
+        if (!sendClickableBroadcast(text, command, hover)) {
+            Bukkit.broadcastMessage(text);
+        }
+        sendTitle(redbag);
     }
 
     void broadcastLuckyKing(Redbag redbag) {
@@ -177,6 +225,63 @@ final class RedbagService {
             return true;
         }
         return false;
+    }
+
+    private boolean sendClickableBroadcast(String text, String command, String hover) {
+        try {
+            Class<?> componentClass = Class.forName("net.md_5.bungee.api.chat.TextComponent");
+            Class<?> baseComponentClass = Class.forName("net.md_5.bungee.api.chat.BaseComponent");
+            Class<?> clickEventClass = Class.forName("net.md_5.bungee.api.chat.ClickEvent");
+            Class<?> clickActionClass = Class.forName("net.md_5.bungee.api.chat.ClickEvent$Action");
+            Class<?> hoverEventClass = Class.forName("net.md_5.bungee.api.chat.HoverEvent");
+            Class<?> hoverActionClass = Class.forName("net.md_5.bungee.api.chat.HoverEvent$Action");
+            Object component = componentClass.getConstructor(String.class).newInstance(text);
+            Object clickAction = enumValue(clickActionClass, "RUN_COMMAND");
+            Object clickEvent = clickEventClass.getConstructor(clickActionClass, String.class).newInstance(clickAction, command);
+            componentClass.getMethod("setClickEvent", clickEventClass).invoke(component, clickEvent);
+            Object hoverAction = enumValue(hoverActionClass, "SHOW_TEXT");
+            Object hoverText = componentClass.getConstructor(String.class).newInstance(hover);
+            Object hoverArray = java.lang.reflect.Array.newInstance(baseComponentClass, 1);
+            java.lang.reflect.Array.set(hoverArray, 0, hoverText);
+            Object hoverEvent = hoverEventClass.getConstructor(hoverActionClass, hoverArray.getClass()).newInstance(hoverAction, hoverArray);
+            componentClass.getMethod("setHoverEvent", hoverEventClass).invoke(component, hoverEvent);
+            Object messageArray = java.lang.reflect.Array.newInstance(baseComponentClass, 1);
+            java.lang.reflect.Array.set(messageArray, 0, component);
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                Object spigot = player.getClass().getMethod("spigot").invoke(player);
+                spigot.getClass().getMethod("sendMessage", messageArray.getClass()).invoke(spigot, messageArray);
+            }
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private Object enumValue(Class<?> enumClass, String name) {
+        Object[] constants = enumClass.getEnumConstants();
+        for (Object constant : constants) {
+            if (((Enum<?>) constant).name().equals(name)) {
+                return constant;
+            }
+        }
+        throw new IllegalArgumentException(name);
+    }
+
+    private void sendTitle(Redbag redbag) {
+        String title = plugin.color(plugin.getConfig().getString("messages.title-main", "&c&l红包来了"));
+        String subtitle = plugin.color(plugin.getConfig().getString("messages.title-subtitle", "&e{player} 发了一个红包，点击聊天消息领取"))
+                .replace("{player}", redbag.getOwnerName())
+                .replace("{id}", String.valueOf(redbag.getId()))
+                .replace("{message}", redbag.getMessage())
+                .replace("{passphrase}", redbag.getPassphrase());
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            try {
+                player.getClass().getMethod("sendTitle", String.class, String.class, int.class, int.class, int.class)
+                        .invoke(player, title, subtitle, 10, 50, 10);
+            } catch (Throwable ignored) {
+                player.sendMessage(subtitle);
+            }
+        }
     }
 
     static final class CreateResult {
