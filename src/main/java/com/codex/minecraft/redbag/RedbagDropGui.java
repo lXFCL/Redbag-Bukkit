@@ -17,6 +17,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -25,6 +26,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 final class RedbagDropGui implements Listener {
     private final RedbagPlugin plugin;
     private final Map<UUID, PendingRedbag> pending = new HashMap<UUID, PendingRedbag>();
+    private final Map<UUID, Long> recentClaims = new HashMap<UUID, Long>();
 
     RedbagDropGui(RedbagPlugin plugin) {
         this.plugin = plugin;
@@ -113,24 +115,41 @@ final class RedbagDropGui implements Listener {
         if (action != Action.LEFT_CLICK_AIR && action != Action.LEFT_CLICK_BLOCK) {
             return;
         }
-        ItemStack stack = event.getItem();
-        if (stack == null || stack.getType() == Material.AIR) {
-            return;
+        if (claimByHeldItem(event.getPlayer(), event.getItem())) {
+            event.setCancelled(true);
         }
-        Player player = event.getPlayer();
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerAnimation(PlayerAnimationEvent event) {
+        claimByHeldItem(event.getPlayer(), event.getPlayer().getItemInHand());
+    }
+
+    private boolean claimByHeldItem(Player player, ItemStack stack) {
+        if (stack == null || stack.getType() == Material.AIR) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        Long lastClaim = recentClaims.get(player.getUniqueId());
+        if (lastClaim != null && now - lastClaim.longValue() < 250L) {
+            return false;
+        }
         if (!plugin.getRedbagService().hasClaimableDropItem(player, stack.getType().name())) {
-            return;
+            return false;
         }
         RedbagService.ClaimResult result = plugin.getRedbagService().claimByItemUse(player, stack.getType().name());
         if (result.isSuccess()) {
-            event.setCancelled(true);
+            recentClaims.put(player.getUniqueId(), now);
             player.sendMessage(plugin.msg("grabbed")
                     .replace("{id}", String.valueOf(result.getRedbag().getId()))
                     .replace("{amount}", Money.format(result.getClaim().getAmount())));
+            return true;
         } else if (!"no-item-redbag".equals(result.getMessageKey())) {
-            event.setCancelled(true);
+            recentClaims.put(player.getUniqueId(), now);
             player.sendMessage(plugin.msg(result.getMessageKey()));
+            return true;
         }
+        return false;
     }
 
     private int getSize() {
