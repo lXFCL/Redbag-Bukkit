@@ -166,7 +166,7 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
         if (redbag.hasPassphrase()) {
             sender.sendMessage(plugin.color("&7类型: &d口令红包 &7领取时需要输入口令。"));
         } else if (redbag.requiresDropItem()) {
-            sender.sendMessage(plugin.color("&7类型: &a物品红包 &7丢出: &e" + redbag.getClaimItemMaterial()));
+            sender.sendMessage(plugin.color("&7类型: &a物品红包 &7手持右键: &e" + redbag.getClaimItemMaterial()));
         }
         for (Claim claim : redbag.getClaims().values()) {
             sender.sendMessage(plugin.color("&7- &f" + claim.getPlayerName() + " &e" + Money.format(claim.getAmount())));

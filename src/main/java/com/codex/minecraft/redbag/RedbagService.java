@@ -111,7 +111,7 @@ final class RedbagService {
         return finishClaim(player, redbag, amount);
     }
 
-    ClaimResult claimByDroppedItem(Player player, String materialName) {
+    ClaimResult claimByItemUse(Player player, String materialName) {
         for (Redbag redbag : getOpenRedbags()) {
             if (redbag.matchesClaimItem(materialName) && !redbag.hasClaimed(player.getUniqueId())) {
                 double speedWeight = getSpeedWeight(redbag);
@@ -120,7 +120,7 @@ final class RedbagService {
                 return finishClaim(player, redbag, amount);
             }
         }
-        return ClaimResult.error("no-drop-redbag");
+        return ClaimResult.error("no-item-redbag");
     }
 
     ClaimResult claimByPassphrase(Player player, String passphraseAnswer) {

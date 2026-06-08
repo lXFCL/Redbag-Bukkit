@@ -14,8 +14,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -30,7 +32,9 @@ final class RedbagDropGui implements Listener {
 
     void open(Player player, double total, int count, String message) {
         pending.put(player.getUniqueId(), new PendingRedbag(total, count, message, System.currentTimeMillis()));
-        Inventory inventory = Bukkit.createInventory(null, getSize(), plugin.color(plugin.getConfig().getString("drop-gui.title", "&c选择领取物品")));
+        RedbagGuiHolder holder = new RedbagGuiHolder(player.getUniqueId());
+        Inventory inventory = Bukkit.createInventory(holder, getSize(), plugin.color(plugin.getConfig().getString("drop-gui.title", "&c选择领取物品")));
+        holder.setInventory(inventory);
         for (RedbagDropItem dropItem : getDropItems()) {
             if (dropItem.getSlot() < 0 || dropItem.getSlot() >= inventory.getSize()) {
                 continue;
@@ -61,8 +65,7 @@ final class RedbagDropGui implements Listener {
             return;
         }
         Player player = (Player) event.getWhoClicked();
-        String title = plugin.color(plugin.getConfig().getString("drop-gui.title", "&c选择领取物品"));
-        if (!title.equals(getInventoryTitle(event))) {
+        if (!isRedbagGui(event.getInventory(), player)) {
             return;
         }
         event.setCancelled(true);
@@ -95,8 +98,22 @@ final class RedbagDropGui implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onPlayerDropItem(PlayerDropItemEvent event) {
-        ItemStack stack = event.getItemDrop().getItemStack();
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) {
+            return;
+        }
+        if (isRedbagGui(event.getInventory(), (Player) event.getWhoClicked())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        Action action = event.getAction();
+        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+        ItemStack stack = event.getItem();
         if (stack == null || stack.getType() == Material.AIR) {
             return;
         }
@@ -104,13 +121,13 @@ final class RedbagDropGui implements Listener {
         if (!plugin.getRedbagService().hasClaimableDropItem(player, stack.getType().name())) {
             return;
         }
-        RedbagService.ClaimResult result = plugin.getRedbagService().claimByDroppedItem(player, stack.getType().name());
+        RedbagService.ClaimResult result = plugin.getRedbagService().claimByItemUse(player, stack.getType().name());
         if (result.isSuccess()) {
             event.setCancelled(true);
             player.sendMessage(plugin.msg("grabbed")
                     .replace("{id}", String.valueOf(result.getRedbag().getId()))
                     .replace("{amount}", Money.format(result.getClaim().getAmount())));
-        } else if (!"no-drop-redbag".equals(result.getMessageKey())) {
+        } else if (!"no-item-redbag".equals(result.getMessageKey())) {
             event.setCancelled(true);
             player.sendMessage(plugin.msg(result.getMessageKey()));
         }
@@ -127,19 +144,12 @@ final class RedbagDropGui implements Listener {
         return ((size + 8) / 9) * 9;
     }
 
-    private String getInventoryTitle(InventoryClickEvent event) {
-        try {
-            Object view = event.getView();
-            Object title = view.getClass().getMethod("getTitle").invoke(view);
-            return String.valueOf(title);
-        } catch (Throwable ignored) {
-            try {
-                Object title = event.getInventory().getClass().getMethod("getTitle").invoke(event.getInventory());
-                return String.valueOf(title);
-            } catch (Throwable ignoredAgain) {
-                return "";
-            }
+    private boolean isRedbagGui(Inventory inventory, Player player) {
+        if (inventory == null || !(inventory.getHolder() instanceof RedbagGuiHolder)) {
+            return false;
         }
+        RedbagGuiHolder holder = (RedbagGuiHolder) inventory.getHolder();
+        return holder.getPlayerId().equals(player.getUniqueId());
     }
 
     private RedbagDropItem getDropItemBySlot(int slot) {

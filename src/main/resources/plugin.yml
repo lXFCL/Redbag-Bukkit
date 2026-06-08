@@ -1,6 +1,6 @@
 name: Redbag
 main: com.codex.minecraft.redbag.RedbagPlugin
-version: 1.2.0
+version: 1.2.1
 author: Codex
 softdepend: [AyCore, Vault, NyEconomy, Essentials]
 commands:
