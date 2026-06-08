@@ -39,6 +39,7 @@ public class RedbagPluginTest {
         assertNotNull(server);
         assertNotNull(plugin.getRedbagService());
         assertEquals(1D, plugin.getConfig().getDouble("settings.min-total"), 0.0001D);
+        assertEquals(5, plugin.getConfig().getInt("settings.expire-minutes"));
         assertEquals(16, plugin.getConfig().getInt("settings.max-passphrase-length"));
 
         PluginCommand command = plugin.getCommand("redbag");
@@ -55,6 +56,7 @@ public class RedbagPluginTest {
 
         assertTrue(plugin.getRedbagService().hasClaimablePassphrase(player, " lucky "));
         assertFalse(plugin.getRedbagService().hasClaimablePassphrase(player, "wrong"));
+        assertTrue(plugin.getRedbagService().hasOpenPassphrase("lucky"));
     }
 
     @Test
@@ -67,5 +69,15 @@ public class RedbagPluginTest {
         plugin.getRedbagService().replaceRedbagsForTest(2, redbags);
 
         assertFalse(plugin.getRedbagService().hasClaimablePassphrase(player, "lucky"));
+        assertTrue(plugin.getRedbagService().hasOpenPassphrase("lucky"));
+    }
+
+    @Test
+    public void openPassphraseIgnoresFinishedCodeRedbag() {
+        Map<Integer, Redbag> redbags = new LinkedHashMap<Integer, Redbag>();
+        redbags.put(1, new Redbag(1, UUID.randomUUID(), "Alice", 10D, 1, "hello", "lucky", System.currentTimeMillis(), 0D, Collections.<UUID, Claim>emptyMap()));
+        plugin.getRedbagService().replaceRedbagsForTest(2, redbags);
+
+        assertFalse(plugin.getRedbagService().hasOpenPassphrase("lucky"));
     }
 }

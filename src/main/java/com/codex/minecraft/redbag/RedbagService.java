@@ -53,11 +53,15 @@ final class RedbagService {
         int minCount = plugin.getConfig().getInt("settings.min-count", 1);
         int maxCount = plugin.getConfig().getInt("settings.max-count", 100);
         int maxPassphraseLength = plugin.getConfig().getInt("settings.max-passphrase-length", 16);
+        passphrase = Redbag.cleanPassphrase(passphrase);
         if (total < minTotal || total > maxTotal || count < minCount || count > maxCount || total < count * 0.01D) {
             return CreateResult.error("invalid-usage");
         }
-        if (passphrase != null && passphrase.trim().length() > maxPassphraseLength) {
+        if (passphrase.length() > maxPassphraseLength) {
             return CreateResult.error("invalid-passphrase");
+        }
+        if (passphrase.length() > 0 && hasOpenPassphrase(passphrase)) {
+            return CreateResult.error("duplicate-passphrase");
         }
         if (!economy.has(player, total)) {
             return CreateResult.error("insufficient-money");
@@ -141,6 +145,19 @@ final class RedbagService {
         return false;
     }
 
+    boolean hasOpenPassphrase(String passphraseAnswer) {
+        String answer = Redbag.cleanPassphrase(passphraseAnswer);
+        if (answer.length() == 0) {
+            return false;
+        }
+        for (Redbag redbag : getOpenRedbags()) {
+            if (redbag.hasPassphrase() && redbag.matchesPassphrase(answer)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     Redbag get(int id) {
         Redbag redbag = redbags.get(id);
         if (redbag != null && isExpired(redbag)) {
@@ -162,7 +179,7 @@ final class RedbagService {
     }
 
     boolean isExpired(Redbag redbag) {
-        long expireMillis = plugin.getConfig().getLong("settings.expire-minutes", 60L) * 60L * 1000L;
+        long expireMillis = plugin.getConfig().getLong("settings.expire-minutes", 5L) * 60L * 1000L;
         return System.currentTimeMillis() - redbag.getCreatedAt() > expireMillis;
     }
 
@@ -170,19 +187,17 @@ final class RedbagService {
         if (!plugin.getConfig().getBoolean("settings.broadcast-created", true)) {
             return;
         }
-        String messageKey = redbag.hasPassphrase() ? "created-code-broadcast" : "created-broadcast";
-        String text = plugin.msg(messageKey)
-                .replace("{player}", redbag.getOwnerName())
-                .replace("{id}", String.valueOf(redbag.getId()))
-                .replace("{passphrase}", redbag.getPassphrase())
-                .replace("{message}", redbag.getMessage());
-        String hover = plugin.msg("click-hover").replace("{id}", String.valueOf(redbag.getId()));
-        String command = "/redbag grab " + redbag.getId();
         if (redbag.hasPassphrase()) {
-            command = command + " " + redbag.getPassphrase();
-        }
-        if (!sendClickableBroadcast(text, command, hover)) {
-            Bukkit.broadcastMessage(text);
+            Bukkit.broadcastMessage(format(plugin.msg("created-code-broadcast"), redbag));
+        } else {
+            String text = format(plugin.msg("created-broadcast"), redbag);
+            String clickText = format(rawMessage("created-click-text", "&c&l[点我领取红包]"), redbag);
+            String hover = format(rawMessage("created-click-hover", "&e点击领取红包 #{id}"), redbag);
+            String suffix = format(rawMessage("created-broadcast-suffix", ""), redbag);
+            String command = "/redbag grab " + redbag.getId();
+            if (!sendClickableBroadcast(text, clickText, command, hover, suffix)) {
+                Bukkit.broadcastMessage(text + clickText + suffix);
+            }
         }
         sendTitle(redbag);
     }
@@ -227,7 +242,19 @@ final class RedbagService {
         return false;
     }
 
-    private boolean sendClickableBroadcast(String text, String command, String hover) {
+    private String rawMessage(String path, String fallback) {
+        return plugin.color(plugin.getConfig().getString("messages." + path, fallback));
+    }
+
+    private String format(String text, Redbag redbag) {
+        return text.replace("{player}", redbag.getOwnerName())
+                .replace("{id}", String.valueOf(redbag.getId()))
+                .replace("{passphrase}", redbag.getPassphrase())
+                .replace("{message}", redbag.getMessage())
+                .replace("{expire}", String.valueOf(plugin.getConfig().getLong("settings.expire-minutes", 5L)));
+    }
+
+    private boolean sendClickableBroadcast(String text, String clickText, String command, String hover, String suffix) {
         try {
             Class<?> componentClass = Class.forName("net.md_5.bungee.api.chat.TextComponent");
             Class<?> baseComponentClass = Class.forName("net.md_5.bungee.api.chat.BaseComponent");
@@ -235,18 +262,22 @@ final class RedbagService {
             Class<?> clickActionClass = Class.forName("net.md_5.bungee.api.chat.ClickEvent$Action");
             Class<?> hoverEventClass = Class.forName("net.md_5.bungee.api.chat.HoverEvent");
             Class<?> hoverActionClass = Class.forName("net.md_5.bungee.api.chat.HoverEvent$Action");
-            Object component = componentClass.getConstructor(String.class).newInstance(text);
+            Object textComponent = componentClass.getConstructor(String.class).newInstance(text);
+            Object clickComponent = componentClass.getConstructor(String.class).newInstance(clickText);
             Object clickAction = enumValue(clickActionClass, "RUN_COMMAND");
             Object clickEvent = clickEventClass.getConstructor(clickActionClass, String.class).newInstance(clickAction, command);
-            componentClass.getMethod("setClickEvent", clickEventClass).invoke(component, clickEvent);
+            componentClass.getMethod("setClickEvent", clickEventClass).invoke(clickComponent, clickEvent);
             Object hoverAction = enumValue(hoverActionClass, "SHOW_TEXT");
             Object hoverText = componentClass.getConstructor(String.class).newInstance(hover);
             Object hoverArray = java.lang.reflect.Array.newInstance(baseComponentClass, 1);
             java.lang.reflect.Array.set(hoverArray, 0, hoverText);
             Object hoverEvent = hoverEventClass.getConstructor(hoverActionClass, hoverArray.getClass()).newInstance(hoverAction, hoverArray);
-            componentClass.getMethod("setHoverEvent", hoverEventClass).invoke(component, hoverEvent);
-            Object messageArray = java.lang.reflect.Array.newInstance(baseComponentClass, 1);
-            java.lang.reflect.Array.set(messageArray, 0, component);
+            componentClass.getMethod("setHoverEvent", hoverEventClass).invoke(clickComponent, hoverEvent);
+            Object suffixComponent = componentClass.getConstructor(String.class).newInstance(suffix);
+            Object messageArray = java.lang.reflect.Array.newInstance(baseComponentClass, 3);
+            java.lang.reflect.Array.set(messageArray, 0, textComponent);
+            java.lang.reflect.Array.set(messageArray, 1, clickComponent);
+            java.lang.reflect.Array.set(messageArray, 2, suffixComponent);
             for (Player player : Bukkit.getOnlinePlayers()) {
                 Object spigot = player.getClass().getMethod("spigot").invoke(player);
                 spigot.getClass().getMethod("sendMessage", messageArray.getClass()).invoke(spigot, messageArray);
@@ -268,12 +299,10 @@ final class RedbagService {
     }
 
     private void sendTitle(Redbag redbag) {
-        String title = plugin.color(plugin.getConfig().getString("messages.title-main", "&c&l红包来了"));
-        String subtitle = plugin.color(plugin.getConfig().getString("messages.title-subtitle", "&e{player} 发了一个红包，点击聊天消息领取"))
-                .replace("{player}", redbag.getOwnerName())
-                .replace("{id}", String.valueOf(redbag.getId()))
-                .replace("{message}", redbag.getMessage())
-                .replace("{passphrase}", redbag.getPassphrase());
+        String mainKey = redbag.hasPassphrase() ? "title-code-main" : "title-main";
+        String subtitleKey = redbag.hasPassphrase() ? "title-code-subtitle" : "title-subtitle";
+        String title = format(rawMessage(mainKey, "&c&l红包来了！&e{player}&c&l发了红包"), redbag);
+        String subtitle = format(rawMessage(subtitleKey, "&f祝福语：{message}"), redbag);
         for (Player player : Bukkit.getOnlinePlayers()) {
             try {
                 player.getClass().getMethod("sendTitle", String.class, String.class, int.class, int.class, int.class)
