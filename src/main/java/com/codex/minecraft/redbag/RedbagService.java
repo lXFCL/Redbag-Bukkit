@@ -106,6 +106,7 @@ final class RedbagService {
         }
         Claim claim = redbag.addClaim(player.getUniqueId(), player.getName(), amount, System.currentTimeMillis());
         save();
+        broadcastClaimed(redbag, claim);
         if (redbag.isFinished()) {
             broadcastLuckyKing(redbag);
         }
@@ -217,6 +218,17 @@ final class RedbagService {
         Bukkit.broadcastMessage(text);
     }
 
+    void broadcastClaimed(Redbag redbag, Claim claim) {
+        if (!plugin.getConfig().getBoolean("settings.broadcast-claimed", true)) {
+            return;
+        }
+        Bukkit.broadcastMessage(format(plugin.msg("claimed-broadcast"), redbag)
+                .replace("{claimer}", claim.getPlayerName())
+                .replace("{amount}", Money.format(claim.getAmount()))
+                .replace("{remaining-count}", String.valueOf(redbag.getRemainingCount()))
+                .replace("{remaining}", Money.format(redbag.getRemaining())));
+    }
+
     private void refundExpiredRedbags() {
         boolean changed = false;
         for (Redbag redbag : redbags.values()) {
@@ -262,22 +274,27 @@ final class RedbagService {
             Class<?> clickActionClass = Class.forName("net.md_5.bungee.api.chat.ClickEvent$Action");
             Class<?> hoverEventClass = Class.forName("net.md_5.bungee.api.chat.HoverEvent");
             Class<?> hoverActionClass = Class.forName("net.md_5.bungee.api.chat.HoverEvent$Action");
-            Object textComponent = componentClass.getConstructor(String.class).newInstance(text);
-            Object clickComponent = componentClass.getConstructor(String.class).newInstance(clickText);
+            java.lang.reflect.Method fromLegacyText = componentClass.getMethod("fromLegacyText", String.class);
+            Object textComponents = fromLegacyText.invoke(null, text);
+            Object clickComponents = fromLegacyText.invoke(null, clickText);
+            Object suffixComponents = fromLegacyText.invoke(null, suffix);
+            int textLength = java.lang.reflect.Array.getLength(textComponents);
+            int clickLength = java.lang.reflect.Array.getLength(clickComponents);
+            int suffixLength = java.lang.reflect.Array.getLength(suffixComponents);
+            Object messageArray = java.lang.reflect.Array.newInstance(baseComponentClass, textLength + clickLength + suffixLength);
+            copyComponents(textComponents, messageArray, 0);
+            copyComponents(clickComponents, messageArray, textLength);
+            copyComponents(suffixComponents, messageArray, textLength + clickLength);
             Object clickAction = enumValue(clickActionClass, "RUN_COMMAND");
             Object clickEvent = clickEventClass.getConstructor(clickActionClass, String.class).newInstance(clickAction, command);
-            componentClass.getMethod("setClickEvent", clickEventClass).invoke(clickComponent, clickEvent);
             Object hoverAction = enumValue(hoverActionClass, "SHOW_TEXT");
-            Object hoverText = componentClass.getConstructor(String.class).newInstance(hover);
-            Object hoverArray = java.lang.reflect.Array.newInstance(baseComponentClass, 1);
-            java.lang.reflect.Array.set(hoverArray, 0, hoverText);
-            Object hoverEvent = hoverEventClass.getConstructor(hoverActionClass, hoverArray.getClass()).newInstance(hoverAction, hoverArray);
-            componentClass.getMethod("setHoverEvent", hoverEventClass).invoke(clickComponent, hoverEvent);
-            Object suffixComponent = componentClass.getConstructor(String.class).newInstance(suffix);
-            Object messageArray = java.lang.reflect.Array.newInstance(baseComponentClass, 3);
-            java.lang.reflect.Array.set(messageArray, 0, textComponent);
-            java.lang.reflect.Array.set(messageArray, 1, clickComponent);
-            java.lang.reflect.Array.set(messageArray, 2, suffixComponent);
+            Object hoverComponents = fromLegacyText.invoke(null, hover);
+            Object hoverEvent = hoverEventClass.getConstructor(hoverActionClass, hoverComponents.getClass()).newInstance(hoverAction, hoverComponents);
+            for (int i = textLength; i < textLength + clickLength; i++) {
+                Object component = java.lang.reflect.Array.get(messageArray, i);
+                component.getClass().getMethod("setClickEvent", clickEventClass).invoke(component, clickEvent);
+                component.getClass().getMethod("setHoverEvent", hoverEventClass).invoke(component, hoverEvent);
+            }
             for (Player player : Bukkit.getOnlinePlayers()) {
                 Object spigot = player.getClass().getMethod("spigot").invoke(player);
                 spigot.getClass().getMethod("sendMessage", messageArray.getClass()).invoke(spigot, messageArray);
@@ -285,6 +302,13 @@ final class RedbagService {
             return true;
         } catch (Throwable ignored) {
             return false;
+        }
+    }
+
+    private void copyComponents(Object sourceArray, Object targetArray, int targetOffset) {
+        int length = java.lang.reflect.Array.getLength(sourceArray);
+        for (int i = 0; i < length; i++) {
+            java.lang.reflect.Array.set(targetArray, targetOffset + i, java.lang.reflect.Array.get(sourceArray, i));
         }
     }
 
@@ -301,7 +325,7 @@ final class RedbagService {
     private void sendTitle(Redbag redbag) {
         String mainKey = redbag.hasPassphrase() ? "title-code-main" : "title-main";
         String subtitleKey = redbag.hasPassphrase() ? "title-code-subtitle" : "title-subtitle";
-        String title = format(rawMessage(mainKey, "&c&l红包来了！&e{player}&c&l发了红包"), redbag);
+        String title = format(rawMessage(mainKey, "&c&l红包来了！"), redbag);
         String subtitle = format(rawMessage(subtitleKey, "&f祝福语：{message}"), redbag);
         for (Player player : Bukkit.getOnlinePlayers()) {
             try {

@@ -40,7 +40,12 @@ public class RedbagPluginTest {
         assertNotNull(plugin.getRedbagService());
         assertEquals(1D, plugin.getConfig().getDouble("settings.min-total"), 0.0001D);
         assertEquals(5, plugin.getConfig().getInt("settings.expire-minutes"));
+        assertTrue(plugin.getConfig().getBoolean("settings.broadcast-claimed"));
         assertEquals(16, plugin.getConfig().getInt("settings.max-passphrase-length"));
+        assertEquals("&c&l红包来了！", plugin.getConfig().getString("messages.title-main"));
+        assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("祝福语: "));
+        assertTrue(plugin.getConfig().getString("messages.created-code-broadcast").contains("祝福语: "));
+        assertTrue(plugin.getConfig().getString("messages.claimed-broadcast").contains("{remaining-count}"));
 
         PluginCommand command = plugin.getCommand("redbag");
         assertNotNull(command);
