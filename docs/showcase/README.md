@@ -5,8 +5,8 @@ This folder contains showcase images for the Redbag Bukkit plugin. They can be u
 ## Images
 
 - `01-overview.png`: Core redbag flow overview.
-- `02-item-gui.png`: Normal redbag item-selection GUI.
-- `03-left-click-claim.png`: Claiming a redbag by left-clicking while holding the configured item.
+- `02-item-gui.png`: Speed redbag item-selection GUI.
+- `03-left-click-claim.png`: Claiming a speed redbag by left-clicking while holding the configured item.
 - `04-configurable.png`: Configurable expiry, claim items, messages, and broadcasts.
 
-The final images use real in-game screenshots as their background/source material. Raw captured screenshots are kept in `raw/` for future redesigns.
+The final images use clean generated backgrounds. Raw captured screenshots are kept in `raw/` as source material for GUI/title references in future redesigns.
