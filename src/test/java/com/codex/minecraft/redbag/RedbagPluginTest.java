@@ -54,11 +54,12 @@ public class RedbagPluginTest {
         assertEquals(10, plugin.getConfig().getConfigurationSection("drop-items").getKeys(false).size());
         assertEquals("泥土", plugin.getConfig().getString("drop-items.DIRT.name"));
         assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("{claim-item}"));
-        assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("左键空气"));
+        assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("越快越容易拿到更高金额"));
         assertTrue(plugin.getConfig().getString("messages.drop-created-tip").contains("左键"));
         assertTrue(plugin.getConfig().getString("messages.created-broadcast").contains("祝福语: "));
         assertTrue(plugin.getConfig().getString("messages.created-code-broadcast").contains("祝福语: "));
         assertTrue(plugin.getConfig().getString("messages.claimed-broadcast").contains("{remaining-count}"));
+        assertTrue(plugin.getConfig().getString("messages.active-code-redbag-exists").contains("口令红包还没结束"));
 
         PluginCommand command = plugin.getCommand("redbag");
         assertNotNull(command);
@@ -78,8 +79,8 @@ public class RedbagPluginTest {
 
         plugin = MockBukkit.load(RedbagPlugin.class);
 
-        assertEquals("&c你当前已有一个口令红包未领完且未过期，请领完或过期后再发送。", plugin.getConfig().getString("messages.active-code-redbag-exists"));
-        assertTrue(plugin.msg("active-code-redbag-exists").contains("你当前已有一个口令红包"));
+        assertEquals("&c你已经有一个口令红包还没结束，领完或过期后才能再发新的口令红包。", plugin.getConfig().getString("messages.active-code-redbag-exists"));
+        assertTrue(plugin.msg("active-code-redbag-exists").contains("口令红包还没结束"));
         assertFalse(plugin.msg("active-code-redbag-exists").contains("active-code-redbag-exists"));
     }
 
