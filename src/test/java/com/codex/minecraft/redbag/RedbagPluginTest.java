@@ -91,4 +91,55 @@ public class RedbagPluginTest {
 
         assertFalse(plugin.getRedbagService().hasOpenPassphrase("lucky"));
     }
+
+    @Test
+    public void blockingDropRedbagOnlyMatchesOpenDropRedbag() {
+        Player alice = server.addPlayer();
+        Player bob = server.addPlayer();
+        Map<Integer, Redbag> redbags = new LinkedHashMap<Integer, Redbag>();
+        redbags.put(1, new Redbag(1, alice.getUniqueId(), "Alice", 10D, 2, "hello", "", "DIRT", System.currentTimeMillis(), 10D, Collections.<UUID, Claim>emptyMap()));
+        plugin.getRedbagService().replaceRedbagsForTest(2, redbags);
+        assertTrue(plugin.getRedbagService().hasBlockingDropRedbag(alice));
+        assertFalse(plugin.getRedbagService().hasBlockingDropRedbag(bob));
+        assertFalse(plugin.getRedbagService().hasBlockingCodeRedbag(alice));
+
+        redbags.clear();
+        redbags.put(1, new Redbag(1, alice.getUniqueId(), "Alice", 10D, 1, "hello", "", "DIRT", System.currentTimeMillis(), 0D, Collections.<UUID, Claim>emptyMap()));
+        plugin.getRedbagService().replaceRedbagsForTest(2, redbags);
+        assertFalse(plugin.getRedbagService().hasBlockingDropRedbag(alice));
+
+        redbags.clear();
+        redbags.put(1, new Redbag(1, alice.getUniqueId(), "Alice", 10D, 2, "hello", "", "DIRT", System.currentTimeMillis() - 11L * 60L * 1000L, 10D, Collections.<UUID, Claim>emptyMap()));
+        plugin.getRedbagService().replaceRedbagsForTest(2, redbags);
+        assertFalse(plugin.getRedbagService().hasBlockingDropRedbag(alice));
+    }
+
+    @Test
+    public void blockingCodeRedbagOnlyMatchesOpenCodeRedbag() {
+        Player alice = server.addPlayer();
+        Player bob = server.addPlayer();
+        Map<Integer, Redbag> redbags = new LinkedHashMap<Integer, Redbag>();
+        redbags.put(1, new Redbag(1, alice.getUniqueId(), "Alice", 10D, 2, "hello", "lucky", System.currentTimeMillis(), 10D, Collections.<UUID, Claim>emptyMap()));
+        plugin.getRedbagService().replaceRedbagsForTest(2, redbags);
+        assertTrue(plugin.getRedbagService().hasBlockingCodeRedbag(alice));
+        assertFalse(plugin.getRedbagService().hasBlockingCodeRedbag(bob));
+        assertFalse(plugin.getRedbagService().hasBlockingDropRedbag(alice));
+
+        redbags.clear();
+        redbags.put(1, new Redbag(1, alice.getUniqueId(), "Alice", 10D, 2, "hello", "lucky", System.currentTimeMillis() - 11L * 60L * 1000L, 10D, Collections.<UUID, Claim>emptyMap()));
+        plugin.getRedbagService().replaceRedbagsForTest(2, redbags);
+        assertFalse(plugin.getRedbagService().hasBlockingCodeRedbag(alice));
+    }
+
+    @Test
+    public void samePlayerCanHaveDropAndCodeRedbagAtTheSameTime() {
+        Player alice = server.addPlayer();
+        Map<Integer, Redbag> redbags = new LinkedHashMap<Integer, Redbag>();
+        redbags.put(1, new Redbag(1, alice.getUniqueId(), "Alice", 10D, 2, "drop", "", "DIRT", System.currentTimeMillis(), 10D, Collections.<UUID, Claim>emptyMap()));
+        redbags.put(2, new Redbag(2, alice.getUniqueId(), "Alice", 10D, 2, "code", "lucky", System.currentTimeMillis(), 10D, Collections.<UUID, Claim>emptyMap()));
+        plugin.getRedbagService().replaceRedbagsForTest(3, redbags);
+
+        assertTrue(plugin.getRedbagService().hasBlockingDropRedbag(alice));
+        assertTrue(plugin.getRedbagService().hasBlockingCodeRedbag(alice));
+    }
 }

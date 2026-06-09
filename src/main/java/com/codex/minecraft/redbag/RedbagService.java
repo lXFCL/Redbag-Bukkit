@@ -58,11 +58,18 @@ final class RedbagService {
         int maxCount = plugin.getConfig().getInt("settings.max-count", 100);
         int maxPassphraseLength = plugin.getConfig().getInt("settings.max-passphrase-length", 16);
         passphrase = Redbag.cleanPassphrase(passphrase);
+        claimItemMaterial = cleanClaimItemMaterial(claimItemMaterial);
         if (total < minTotal || total > maxTotal || count < minCount || count > maxCount || total < count * 0.01D) {
             return CreateResult.error("invalid-usage");
         }
         if (passphrase.length() > maxPassphraseLength) {
             return CreateResult.error("invalid-passphrase");
+        }
+        if (passphrase.length() > 0 && hasBlockingCodeRedbag(player)) {
+            return CreateResult.error("active-code-redbag-exists");
+        }
+        if (claimItemMaterial.length() > 0 && hasBlockingDropRedbag(player)) {
+            return CreateResult.error("active-drop-redbag-exists");
         }
         if (passphrase.length() > 0 && hasOpenPassphrase(passphrase)) {
             return CreateResult.error("duplicate-passphrase");
@@ -169,6 +176,14 @@ final class RedbagService {
         return false;
     }
 
+    boolean hasBlockingDropRedbag(Player player) {
+        return hasBlockingRedbag(player, false);
+    }
+
+    boolean hasBlockingCodeRedbag(Player player) {
+        return hasBlockingRedbag(player, true);
+    }
+
     boolean hasClaimableDropItem(Player player, String materialName) {
         for (Redbag redbag : getOpenRedbags()) {
             if (redbag.matchesClaimItem(materialName) && !redbag.hasClaimed(player.getUniqueId())) {
@@ -241,7 +256,7 @@ final class RedbagService {
                 .replace("{remaining}", Money.format(redbag.getRemaining())));
     }
 
-    private void refundExpiredRedbags() {
+    void refundExpiredRedbags() {
         boolean changed = false;
         for (Redbag redbag : redbags.values()) {
             if (isExpired(redbag) && refund(redbag)) {
@@ -261,9 +276,20 @@ final class RedbagService {
         double amount = redbag.getRemaining();
         if (economy.deposit(owner, amount)) {
             redbag.refundRemaining();
+            notifyRefund(redbag, amount);
             return true;
         }
         return false;
+    }
+
+    private void notifyRefund(Redbag redbag, double amount) {
+        Player owner = Bukkit.getPlayer(redbag.getOwnerId());
+        if (owner == null || !owner.isOnline()) {
+            return;
+        }
+        owner.sendMessage(format(plugin.msg("expired-refund"), redbag)
+                .replace("{amount}", Money.format(amount))
+                .replace("{remaining-count}", String.valueOf(redbag.getRemainingCount())));
     }
 
     private ClaimResult finishClaim(Player player, Redbag redbag, double amount) {
@@ -286,6 +312,29 @@ final class RedbagService {
         }
         long elapsed = Math.max(0L, System.currentTimeMillis() - redbag.getCreatedAt());
         return Math.max(0D, Math.min(1D, 1D - (double) elapsed / (double) expireMillis));
+    }
+
+    private boolean hasBlockingRedbag(Player player, boolean codeRedbag) {
+        refundExpiredRedbags();
+        if (player == null) {
+            return false;
+        }
+        for (Redbag redbag : redbags.values()) {
+            if (isExpired(redbag) || redbag.isFinished() || !redbag.getOwnerId().equals(player.getUniqueId())) {
+                continue;
+            }
+            if (codeRedbag && redbag.hasPassphrase()) {
+                return true;
+            }
+            if (!codeRedbag && redbag.requiresDropItem()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String cleanClaimItemMaterial(String materialName) {
+        return materialName == null ? "" : materialName.trim().toUpperCase();
     }
 
     private String rawMessage(String path, String fallback) {

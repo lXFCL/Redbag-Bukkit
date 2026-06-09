@@ -69,6 +69,10 @@ final class RedbagCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(plugin.msg("invalid-number"));
             return true;
         }
+        if (service.hasBlockingDropRedbag((Player) sender)) {
+            sender.sendMessage(plugin.msg("active-drop-redbag-exists"));
+            return true;
+        }
         String message = args.length > 3 ? join(args, 3) : "恭喜发财";
         dropGui.open((Player) sender, total, count, message);
         sender.sendMessage(plugin.msg("choose-drop-item"));

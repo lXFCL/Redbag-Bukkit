@@ -37,6 +37,12 @@ public final class RedbagPlugin extends JavaPlugin {
         }
         getServer().getPluginManager().registerEvents(new RedbagChatListener(this), this);
         getServer().getPluginManager().registerEvents(dropGui, this);
+        getServer().getScheduler().runTaskTimer(this, new Runnable() {
+            @Override
+            public void run() {
+                redbagService.refundExpiredRedbags();
+            }
+        }, 20L * 60L, 20L * 60L);
 
         getLogger().info("Redbag enabled. Economy ready: " + economy.isReady());
     }
