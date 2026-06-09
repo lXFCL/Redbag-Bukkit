@@ -10,6 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.entity.Player;
 import org.junit.After;
@@ -32,6 +34,11 @@ public class RedbagPluginTest {
     @After
     public void tearDown() {
         MockBukkit.unload();
+        deleteRecursively(new java.io.File("plugins/Redbag"));
+        java.io.File plugins = new java.io.File("plugins");
+        if (plugins.exists()) {
+            plugins.delete();
+        }
     }
 
     @Test
@@ -56,6 +63,39 @@ public class RedbagPluginTest {
         PluginCommand command = plugin.getCommand("redbag");
         assertNotNull(command);
         assertEquals("Send and claim red packets.", command.getDescription());
+    }
+
+    @Test
+    public void pluginMergesMissingDefaultMessagesIntoExistingConfig() throws Exception {
+        MockBukkit.unload();
+        server = MockBukkit.mock();
+        FileConfiguration oldConfig = new YamlConfiguration();
+        oldConfig.set("messages.prefix", "&c[红包]&r ");
+        oldConfig.set("settings.expire-minutes", 10);
+        java.io.File dataFolder = new java.io.File("plugins/Redbag");
+        dataFolder.mkdirs();
+        oldConfig.save(new java.io.File(dataFolder, "config.yml"));
+
+        plugin = MockBukkit.load(RedbagPlugin.class);
+
+        assertEquals("&c你当前已有一个口令红包未领完且未过期，请领完或过期后再发送。", plugin.getConfig().getString("messages.active-code-redbag-exists"));
+        assertTrue(plugin.msg("active-code-redbag-exists").contains("你当前已有一个口令红包"));
+        assertFalse(plugin.msg("active-code-redbag-exists").contains("active-code-redbag-exists"));
+    }
+
+    private void deleteRecursively(java.io.File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        if (file.isDirectory()) {
+            java.io.File[] children = file.listFiles();
+            if (children != null) {
+                for (java.io.File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        file.delete();
     }
 
     @Test

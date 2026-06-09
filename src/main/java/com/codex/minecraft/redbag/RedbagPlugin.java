@@ -1,8 +1,12 @@
 package com.codex.minecraft.redbag;
 
 import java.io.File;
+import java.io.InputStreamReader;
+import java.io.Reader;
 
 import org.bukkit.ChatColor;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPluginLoader;
@@ -25,6 +29,7 @@ public final class RedbagPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        mergeDefaultConfig();
         this.storage = new RedbagStorage(this);
         reloadRuntime();
         this.dropGui = new RedbagDropGui(this);
@@ -56,6 +61,7 @@ public final class RedbagPlugin extends JavaPlugin {
 
     public void reloadPlugin() {
         reloadConfig();
+        mergeDefaultConfig();
         reloadRuntime();
     }
 
@@ -71,6 +77,26 @@ public final class RedbagPlugin extends JavaPlugin {
         this.economy = new EconomyBridge(this);
         this.redbagService = new RedbagService(this, storage, economy);
         this.redbagService.load();
+    }
+
+    private void mergeDefaultConfig() {
+        Reader reader = null;
+        try {
+            reader = new InputStreamReader(getResource("config.yml"), "UTF-8");
+            FileConfiguration defaults = YamlConfiguration.loadConfiguration(reader);
+            getConfig().setDefaults(defaults);
+            getConfig().options().copyDefaults(true);
+            saveConfig();
+        } catch (Exception ex) {
+            getLogger().warning("Failed to merge default config: " + ex.getMessage());
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception ignored) {
+                }
+            }
+        }
     }
 
     public String msg(String path) {
